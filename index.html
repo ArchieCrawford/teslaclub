@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cybertruck</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23050607'/%3E%3Cpath d='M10 36 L26 20 L50 26 L42 44 Z' stroke='%23e9eef5' stroke-width='4' fill='none'/%3E%3Ccircle cx='44' cy='40' r='4' fill='%23e9eef5'/%3E%3Ccircle cx='22' cy='34' r='4' fill='%23e9eef5'/%3E%3C/svg%3E"
+    />
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { background: #050607; color: #e9eef5; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; overflow: hidden; }
+      #app { position: fixed; inset: 0; }
+      canvas { width: 100%; height: 100%; display: block; }
+
+      .hud {
+        position: fixed; inset: 0; pointer-events: none;
+        display: grid; grid-template-rows: auto 1fr auto;
+        padding: 22px;
+      }
+      .top {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        pointer-events: auto;
+        display: flex; flex-direction: column; line-height: 1.1;
+      }
+      .brand b { font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; }
+      .brand span { opacity: 0.75; font-size: 12px; }
+      .pill {
+        pointer-events: auto;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(10px);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 12px;
+        opacity: 0.9;
+      }
+      .center {
+        display: grid;
+        place-items: start center;
+        text-align: center;
+        padding-top: 40px;
+      }
+      .cta {
+        pointer-events: auto;
+        max-width: 720px;
+        padding: 18px 18px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(10px);
+      }
+      .cta h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.02em; }
+      .cta p { margin: 0 0 14px; opacity: 0.78; }
+      .cta .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+      button {
+        pointer-events: auto;
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.06);
+        color: #e9eef5;
+        padding: 10px 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:hover { background: rgba(255,255,255,0.10); }
+      .hint { margin-top: 10px; font-size: 12px; opacity: 0.7; }
+
+      .bottom {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 14px;
+        opacity: 0.7;
+        font-size: 12px;
+      }
+
+      #modeBadge { text-transform: uppercase; letter-spacing: 0.08em; }
+      #crosshair {
+        position: fixed; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        width: 10px; height: 10px;
+        border: 1px solid rgba(255,255,255,0.35);
+        border-radius: 999px;
+        display: none;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <div class="hud">
+      <div class="top">
+        <div class="brand">
+          <b>CYBERTRUCK</b>
+          <span>Showroom → Drive mode</span>
+        </div>
+        <div class="pill"><span id="modeBadge">SHOWROOM</span></div>
+      </div>
+
+      <div class="center">
+        <div class="cta" id="cta">
+          <h1>Click the truck to drive it.</h1>
+          <p>Showroom view first. Then you can jump into a drivable scene.</p>
+          <div class="row">
+            <button id="enterDrive">Enter drive mode</button>
+            <button id="backShowroom" style="display:none;">Back to showroom</button>
+          </div>
+          <div class="hint" id="hint">In drive mode: WASD to move, mouse to look, Esc to unlock.</div>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <div>Built for Dad ❤️</div>
+        <div>Model: <span style="opacity:.85;">public/models/cybertruck-meshy-final.glb</span></div>
+      </div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
