@@ -69,9 +69,14 @@ const state = {
   yaw: 0,
   pitch: 0,
   keys: new Set(),
-  vel: new THREE.Vector3(),
-  speed: 10,
-  turn: 0,
+  speed: 0,
+  maxSpeed: 22,
+  accel: 18,
+  brake: 28,
+  drag: 6,
+  steer: 0,
+  steerRate: 8,
+  maxSteer: 0.75,
 };
 
 function setMode(next) {
@@ -172,33 +177,50 @@ function showroomCamera(dt) {
 }
 
 function driveUpdate(dt) {
-  const forward = state.keys.has("KeyW") ? 1 : 0;
-  const back = state.keys.has("KeyS") ? 1 : 0;
-  const left = state.keys.has("KeyA") ? 1 : 0;
-  const right = state.keys.has("KeyD") ? 1 : 0;
+  const W = state.keys.has("KeyW");
+  const S = state.keys.has("KeyS");
+  const A = state.keys.has("KeyA");
+  const D = state.keys.has("KeyD");
 
-  const accel = (forward - back) * state.speed;
-  const steer = (right - left);
+  const throttle = (W ? 1 : 0) + (S ? -1 : 0);
+  const steerIn = (D ? 1 : 0) + (A ? -1 : 0);
 
-  state.turn = THREE.MathUtils.damp(state.turn, steer * 1.6, 8, dt);
-
-  const dir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
-  state.vel.addScaledVector(dir, accel * dt);
-  state.vel.multiplyScalar(Math.pow(0.04, dt));
-
-  if (truckRoot) {
-    truckRoot.rotation.y = state.yaw;
-    truckRoot.position.addScaledVector(state.vel, dt);
-    truck.position.y = truckYOffset;
-    truckRoot.position.y = 0;
-    state.yaw += state.turn * dt * Math.min(state.vel.length() * 0.35 + 0.25, 2.0);
+  // Speed update (car-like)
+  if (throttle > 0) state.speed += state.accel * dt;
+  else if (throttle < 0) state.speed -= state.brake * dt;
+  else {
+    const sign = Math.sign(state.speed);
+    const decel = Math.min(Math.abs(state.speed), state.drag * dt);
+    state.speed -= sign * decel;
   }
 
-  const chaseBack = new THREE.Vector3(0, 2.2, 7.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
-  const target = truckRoot.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-  const desiredCam = target.clone().add(chaseBack);
+  state.speed = THREE.MathUtils.clamp(state.speed, -state.maxSpeed * 0.35, state.maxSpeed);
 
-  camera.position.lerp(desiredCam, 1 - Math.pow(0.001, dt));
+  // Steering smooth + speed-sensitive
+  state.steer = THREE.MathUtils.damp(state.steer, steerIn, state.steerRate, dt);
+
+  const speed01 = THREE.MathUtils.clamp(Math.abs(state.speed) / state.maxSpeed, 0, 1);
+  const steerStrength = THREE.MathUtils.lerp(state.maxSteer, 0.18, speed01);
+
+  const yawRate = state.steer * steerStrength * (0.6 + 1.4 * speed01) * (state.speed >= 0 ? 1 : -1);
+  state.yaw += yawRate * dt;
+
+  // Move forward in local forward direction (-Z)
+  const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
+  truckRoot.position.addScaledVector(forward, state.speed * dt);
+  truckRoot.rotation.y = state.yaw;
+
+  // Fake suspension bob (speed scaled)
+  const bob = Math.sin(performance.now() * 0.01) * 0.02 * speed01;
+  truck.position.y = truckYOffset + bob;
+  truckRoot.position.y = 0;
+
+  // Camera chase (springy follow)
+  const target = truckRoot.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+  const back = new THREE.Vector3(0, 2.1, 7.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
+  const desired = target.clone().add(back);
+
+  camera.position.lerp(desired, 1 - Math.pow(0.0008, dt));
   camera.lookAt(target);
 }
 
