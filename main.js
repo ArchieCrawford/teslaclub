@@ -60,6 +60,7 @@ const loader = new GLTFLoader();
 
 let truck = null;
 let truckRoot = new THREE.Group();
+let truckYOffset = 0;
 scene.add(truckRoot);
 
 let mode = "showroom";
@@ -105,12 +106,13 @@ function fitTruck() {
   const minY = boxAfter.min.y;
   truck.position.y -= minY;
   truck.position.y += Math.max(0.05, maxDim * 0.02); // lift a bit more so wheels clear the floor
+  truckYOffset = truck.position.y;
 }
 
 function loadTruck() {
   return new Promise((resolve, reject) => {
     loader.load(
-      "./public/models/cybertruck-meshy-final.glb",
+      "./models/cybertruck-meshy-final.glb",
       (gltf) => {
         truck = gltf.scene;
 
@@ -127,6 +129,7 @@ function loadTruck() {
         });
 
         truckRoot.add(truck);
+        fitTruck();
 
         const box = new THREE.Box3().setFromObject(truck);
         const size = box.getSize(new THREE.Vector3());
@@ -186,6 +189,7 @@ function driveUpdate(dt) {
   if (truckRoot) {
     truckRoot.rotation.y = state.yaw;
     truckRoot.position.addScaledVector(state.vel, dt);
+    truck.position.y = truckYOffset;
     truckRoot.position.y = 0;
     state.yaw += state.turn * dt * Math.min(state.vel.length() * 0.35 + 0.25, 2.0);
   }
