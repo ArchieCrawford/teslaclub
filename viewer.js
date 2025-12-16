@@ -30,7 +30,7 @@ scene.add(key);
 
 const loader = new GLTFLoader();
 loader.load(
-  "./models/cybertruck-meshy-final.glb",
+  "/models/cybertruck-meshy-final.glb",
   (gltf) => {
     const model = gltf.scene;
 
@@ -48,7 +48,7 @@ loader.load(
   undefined,
   (err) => {
     console.error(err);
-    toggleOverlay("Failed to load ./models/cybertruck-meshy-final.glb. Place the file there and reload.");
+    toggleOverlay("Failed to load /models/cybertruck-meshy-final.glb. Place the file there and reload.");
   }
 );
 

@@ -117,7 +117,7 @@ function fitTruck() {
 function loadTruck() {
   return new Promise((resolve, reject) => {
     loader.load(
-      "./models/cybertruck-meshy-final.glb",
+      "/models/cybertruck-meshy-final.glb",
       (gltf) => {
         truck = gltf.scene;
 
