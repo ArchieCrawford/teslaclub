@@ -164,7 +164,7 @@ function showroomCamera(dt) {
   const t = performance.now() * 0.00025;
   const r = 9.0;
   camera.position.set(Math.cos(t) * r, 2.2, Math.sin(t) * r);
-  camera.lookAt(0, 1.0, 0);
+  camera.lookAt(0, 1.4, 0); // aim a bit higher so the framed model sits visually higher
 
   if (truck) {
     truckRoot.rotation.y = THREE.MathUtils.damp(truckRoot.rotation.y, truckRoot.rotation.y + dt * 0.25, 2.5, dt);
@@ -220,7 +220,7 @@ renderer.domElement.addEventListener("click", (e) => {
     setMode("drive");
     renderer.domElement.requestPointerLock?.();
   }
-});
+  truck.position.y += Math.max(0.08, maxDim * 0.03); // lift a bit more so it sits higher in showroom
 
 enterDriveBtn.addEventListener("click", () => {
   setMode("drive");
