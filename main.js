@@ -112,6 +112,13 @@ function fitTruck() {
   truck.position.y -= minY;
   truck.position.y += Math.max(0.05, maxDim * 0.02); // lift a bit more so wheels clear the floor
   truckYOffset = truck.position.y;
+
+  const framed = new THREE.Box3().setFromObject(truck);
+  const s = framed.getSize(new THREE.Vector3());
+  const maxDim2 = Math.max(s.x, s.y, s.z);
+  camera.position.set(0, maxDim2 * 0.35, maxDim2 * 1.6);
+  camera.lookAt(0, 1.2, 0);
+  console.log("Model size:", s, "center:", framed.getCenter(new THREE.Vector3()));
 }
 
 function loadTruck() {
@@ -135,24 +142,6 @@ function loadTruck() {
 
         truckRoot.add(truck);
         fitTruck();
-
-        const box = new THREE.Box3().setFromObject(truck);
-        const size = box.getSize(new THREE.Vector3());
-        const center = box.getCenter(new THREE.Vector3());
-        console.log("Model size:", size, "center:", center);
-
-        truck.position.sub(center);
-
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const fov = camera.fov * (Math.PI / 180);
-        let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-        cameraZ *= 1.6;
-
-        camera.position.set(0, maxDim * 0.35, cameraZ);
-        camera.near = Math.max(maxDim / 100, 0.01);
-        camera.far = Math.max(maxDim * 100, 200);
-        camera.updateProjectionMatrix();
-        camera.lookAt(0, 0, 0);
 
         resolve();
       },
@@ -242,7 +231,7 @@ renderer.domElement.addEventListener("click", (e) => {
     setMode("drive");
     renderer.domElement.requestPointerLock?.();
   }
-  truck.position.y += Math.max(0.08, maxDim * 0.03); // lift a bit more so it sits higher in showroom
+});
 
 enterDriveBtn.addEventListener("click", () => {
   setMode("drive");
@@ -252,7 +241,8 @@ enterDriveBtn.addEventListener("click", () => {
 backShowroomBtn.addEventListener("click", () => {
   truckRoot.position.set(0, 0, 0);
   truckRoot.rotation.set(0, 0, 0);
-  state.vel.set(0, 0, 0);
+  state.speed = 0;
+  state.steer = 0;
   state.yaw = 0;
   state.pitch = 0;
   setMode("showroom");
