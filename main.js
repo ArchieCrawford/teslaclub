@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { JeffersonAve } from "./JeffersonAve.js";
 
 const app = document.querySelector("#app");
 const enterDriveBtn = document.querySelector("#enterDrive");
@@ -16,10 +16,11 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x050607, 18, 140);
+scene.fog = new THREE.Fog(0x050607, 16, 1200);
 
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 2000);
 camera.position.set(4, 2, 6);
+camera.updateProjectionMatrix();
 
 const clock = new THREE.Clock();
 
@@ -39,9 +40,13 @@ scene.add(rim);
 const ambient = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambient);
 
-// Debug helpers to visualize origin and scale; remove later if desired.
-scene.add(new THREE.AxesHelper(2));
-scene.add(new THREE.GridHelper(20, 20));
+// Debug helpers (hidden to avoid sticking through the truck)
+const axesHelper = new THREE.AxesHelper(2);
+const helperGrid = new THREE.GridHelper(20, 20);
+axesHelper.visible = false;
+helperGrid.visible = false;
+scene.add(axesHelper);
+scene.add(helperGrid);
 
 const floorGeo = new THREE.CircleGeometry(18, 64);
 const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.95, metalness: 0.05 });
@@ -63,6 +68,13 @@ let truckRoot = new THREE.Group();
 let truckYOffset = 0;
 scene.add(truckRoot);
 
+let jefferson = null;
+const JEFFERSON_START = new THREE.Vector3(0, 0, 40);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const forwardBase = new THREE.Vector3(1, 0, 0); // GLB forward is +X
+const cameraOffsetLocal = new THREE.Vector3(-7.4, 2.1, 0); // behind the truck in its local frame
+const targetOffset = new THREE.Vector3(0, 1.2, 0);
+
 let mode = "showroom";
 
 const state = {
@@ -79,6 +91,48 @@ const state = {
   maxSteer: 0.75,
 };
 
+function ensureJefferson() {
+  if (!jefferson) jefferson = new JeffersonAve(scene);
+}
+
+function resetShowroomPose() {
+  truckRoot.position.set(0, 0, 0);
+  truckRoot.rotation.set(0, 0, 0);
+  state.speed = 0;
+  state.steer = 0;
+  state.yaw = 0;
+  state.pitch = 0;
+  floor.visible = true;
+  grid.visible = true;
+  axesHelper.visible = false;
+  helperGrid.visible = false;
+}
+
+function syncCameraToTruck() {
+  const heading = state.yaw;
+  const target = truckRoot.position.clone().add(targetOffset);
+  const back = cameraOffsetLocal.clone().applyAxisAngle(Y_AXIS, heading);
+  const desired = target.clone().add(back);
+  camera.position.copy(desired);
+  camera.lookAt(target);
+}
+
+function jumpToJefferson() {
+  ensureJefferson();
+  state.speed = 0;
+  state.steer = 0;
+  state.yaw = -Math.PI / 2; // face down Jefferson toward the landmarks (+Z)
+  truckRoot.position.copy(JEFFERSON_START);
+  truckRoot.rotation.set(0, state.yaw, 0);
+  truckRoot.position.y = 0;
+  if (truck) truck.position.y = truckYOffset;
+  floor.visible = false;
+  grid.visible = false;
+  axesHelper.visible = false;
+  helperGrid.visible = false;
+  syncCameraToTruck();
+}
+
 function setMode(next) {
   mode = next;
   modeBadge.textContent = next.toUpperCase();
@@ -89,7 +143,18 @@ function setMode(next) {
   crosshair.style.display = driving ? "block" : "none";
   renderer.domElement.style.cursor = driving ? "none" : "pointer";
 
-  if (!driving) document.exitPointerLock?.();
+  floor.visible = !driving;
+  grid.visible = !driving;
+  axesHelper.visible = false;
+  helperGrid.visible = false;
+
+  if (driving) {
+    jumpToJefferson();
+    renderer.domElement.requestPointerLock?.();
+  } else {
+    resetShowroomPose();
+    document.exitPointerLock?.();
+  }
 }
 
 function fitTruck() {
@@ -141,6 +206,10 @@ function loadTruck() {
         });
 
         truckRoot.add(truck);
+        // If your model faces +X, rotate it so it faces -Z
+        //truck.rotation.y = -Math.PI / 2;
+       truck.rotation.y = Math.PI / 2;
+
         fitTruck();
 
         resolve();
@@ -194,10 +263,11 @@ function driveUpdate(dt) {
   const yawRate = state.steer * steerStrength * (0.6 + 1.4 * speed01) * (state.speed >= 0 ? 1 : -1);
   state.yaw += yawRate * dt;
 
-  // Move forward in local forward direction (-Z)
-  const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
+  // Move forward using the GLB's +X forward axis
+  const heading = state.yaw;
+  const forward = forwardBase.clone().applyAxisAngle(Y_AXIS, heading);
   truckRoot.position.addScaledVector(forward, state.speed * dt);
-  truckRoot.rotation.y = state.yaw;
+  truckRoot.rotation.y = heading;
 
   // Fake suspension bob (speed scaled)
   const bob = Math.sin(performance.now() * 0.01) * 0.02 * speed01;
@@ -205,8 +275,8 @@ function driveUpdate(dt) {
   truckRoot.position.y = 0;
 
   // Camera chase (springy follow)
-  const target = truckRoot.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-  const back = new THREE.Vector3(0, 2.1, 7.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
+  const target = truckRoot.position.clone().add(targetOffset);
+  const back = cameraOffsetLocal.clone().applyAxisAngle(Y_AXIS, heading);
   const desired = target.clone().add(back);
 
   camera.position.lerp(desired, 1 - Math.pow(0.0008, dt));
@@ -229,22 +299,14 @@ function rayHitTruck(clientX, clientY) {
 renderer.domElement.addEventListener("click", (e) => {
   if (mode === "showroom" && rayHitTruck(e.clientX, e.clientY)) {
     setMode("drive");
-    renderer.domElement.requestPointerLock?.();
   }
 });
 
 enterDriveBtn.addEventListener("click", () => {
   setMode("drive");
-  renderer.domElement.requestPointerLock?.();
 });
 
 backShowroomBtn.addEventListener("click", () => {
-  truckRoot.position.set(0, 0, 0);
-  truckRoot.rotation.set(0, 0, 0);
-  state.speed = 0;
-  state.steer = 0;
-  state.yaw = 0;
-  state.pitch = 0;
   setMode("showroom");
 });
 
@@ -270,6 +332,7 @@ await loadTruck().catch(() => {
     new THREE.BoxGeometry(2.8, 1.1, 5.6),
     new THREE.MeshStandardMaterial({ color: 0x8aa0b7, metalness: 0.6, roughness: 0.25 })
   );
+  truck = fallback;
   truckRoot.add(fallback);
   fallback.position.y = 0.8;
 });
