@@ -1,26 +1,19 @@
 export class Minimap {
-  constructor(canvasId, cybertruck) {
+  constructor(canvasId, opts) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
-    this.cybertruck = cybertruck;
+    this.getPosition = opts.getPosition;
+    this.getRotation = opts.getRotation;
+    this.getLandmarks = opts.getLandmarks ?? (() => []);
     
     // Minimap settings
-    this.scale = 1.5; // How much of the world to show
-    this.size = 200; // Canvas size
-    
-    // Jefferson Ave layout
-    this.scale = 2.5; // Increased scale for longer corridor
-    
-    this.landmarks = [
-      { name: 'Walmart', x: 60, z: 1200, color: '#1a4f9a', icon: '🛒' },
-      { name: 'Starbucks', x: -50, z: 800, color: '#00754a', icon: '☕' },
-      { name: 'Shopping', x: -150, z: 400, color: '#888', icon: '🏬' }
-    ];
+    this.size = 200; // Canvas size in px
+    this.scale = 2.5; // World meters per pixel (lower = zoom out)
+    this.scaleBarMeters = 100; // scale bar length in meters
   }
   
   worldToMinimap(worldX, worldZ, truckX, truckZ) {
-    // Convert world coordinates to minimap coordinates
-    // Center the minimap on the truck
+    // Convert world coordinates to minimap coordinates, centered on truck
     const relativeX = worldX - truckX;
     const relativeZ = worldZ - truckZ;
     
@@ -32,8 +25,9 @@ export class Minimap {
   
   draw() {
     const ctx = this.ctx;
-    const truckPos = this.cybertruck.getPosition();
-    const truckRot = this.cybertruck.getRotation();
+    const truckPos = this.getPosition();
+    const truckRot = this.getRotation();
+    const landmarks = this.getLandmarks() || [];
     
     // Clear canvas
     ctx.clearRect(0, 0, this.size, this.size);
@@ -49,13 +43,16 @@ export class Minimap {
     this.drawJeffersonAve(truckPos.x, truckPos.z);
     
     // Draw landmarks
-    this.drawLandmarks(truckPos.x, truckPos.z);
+    this.drawLandmarks(truckPos.x, truckPos.z, landmarks);
     
     // Draw truck (always at center)
     this.drawTruck(truckRot);
     
     // Draw compass directions
     this.drawCompass();
+
+    // Draw scale bar and extents note
+    this.drawScaleBar();
   }
   
   drawGrid(truckX, truckZ) {
@@ -121,15 +118,24 @@ export class Minimap {
     );
   }
   
-  drawLandmarks(truckX, truckZ) {
+  drawLandmarks(truckX, truckZ, landmarks) {
     const ctx = this.ctx;
+    const colorByType = {
+      walmart: '#1a4f9a',
+      starbucks: '#00754a',
+      shopping: '#888',
+      venue: '#5ab1ff',
+      park: '#2ec27e',
+      default: '#ffb347'
+    };
     
-    this.landmarks.forEach(landmark => {
+    landmarks.forEach(landmark => {
       const pos = this.worldToMinimap(landmark.x, landmark.z, truckX, truckZ);
+      const color = colorByType[landmark.type] || colorByType.default;
       
       if (this.isVisible(pos.x, pos.y, 10, 10)) {
         // Draw landmark icon
-        ctx.fillStyle = landmark.color;
+        ctx.fillStyle = color;
         ctx.fillRect(pos.x - 4, pos.y - 4, 8, 8);
         
         // Draw border
@@ -143,10 +149,10 @@ export class Minimap {
           Math.pow(pos.y - this.size / 2, 2)
         );
         
-        if (distance < 60) {
+        if (distance < 80) {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
           ctx.font = '9px Arial';
-          ctx.fillText(landmark.icon, pos.x - 4, pos.y - 6);
+          if (landmark.icon) ctx.fillText(landmark.icon, pos.x - 4, pos.y - 6);
         }
       }
     });
@@ -208,6 +214,26 @@ export class Minimap {
     
     // West (left)
     ctx.fillText('W', 15, centerY);
+  }
+
+  drawScaleBar() {
+    const ctx = this.ctx;
+    const barPx = this.scaleBarMeters / this.scale;
+    const x = 12;
+    const y = this.size - 18;
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + barPx, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '10px Arial';
+    ctx.fillText(`${this.scaleBarMeters} m`, x, y - 6);
+
+    // Extents note
+    const halfSpanMeters = Math.round((this.size / 2) * this.scale);
+    ctx.fillText(`View ±${halfSpanMeters} m`, this.size - 90, this.size - 8);
   }
   
   isVisible(x, y, width, height) {

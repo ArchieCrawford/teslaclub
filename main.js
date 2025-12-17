@@ -214,6 +214,7 @@ function setMode(next) {
       minimap = new Minimap("minimap", {
         getPosition: () => truckRoot.position,
         getRotation: () => state.yaw,
+        getLandmarks: () => jefferson?.getLandmarks?.() || [],
       });
     }
     if (!isTouch) renderer.domElement.requestPointerLock?.();
