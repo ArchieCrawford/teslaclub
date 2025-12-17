@@ -207,8 +207,6 @@ function fitTruck() {
   const size = new THREE.Vector3();
   box.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
-  const scale = 3.2 / maxDim;
-  truck.scale.setScalar(scale);
 
   // Recentre, then lift so the lowest point rests on the floor with a tiny gap.
   const box2 = new THREE.Box3().setFromObject(truck);
