@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { JeffersonAve } from "./JeffersonAve.js";
 import { TrafficSystem } from "./TrafficSystem.js";
 import { PedestrianSystem } from "./PedestrianSystem.js";
+import { Minimap } from "./Minimap.js";
 
 const app = document.querySelector("#app");
 const enterDriveBtn = document.querySelector("#enterDrive");
@@ -11,6 +12,7 @@ const modeBadge = document.querySelector("#modeBadge");
 const cta = document.querySelector("#cta");
 const crosshair = document.querySelector("#crosshair");
 const ctaHint = document.querySelector("#hint");
+const minimapCanvas = document.querySelector("#minimap");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -19,7 +21,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x050607, 16, 1200);
+scene.fog = new THREE.Fog(0x9ecffb, 24, 1400);
+scene.background = new THREE.Color(0x9ecffb);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 2000);
 camera.position.set(4, 2, 6);
@@ -39,6 +42,11 @@ const rim = new THREE.DirectionalLight(0x9bd0ff, 0.5);
 rim.position.set(-10, 6, -10);
 scene.add(rim);
 
+const sun = new THREE.DirectionalLight(0xfff0d0, 1.2);
+sun.position.set(20, 40, 12);
+sun.castShadow = false;
+scene.add(sun);
+
 // Extra fill so dark materials still read while debugging.
 const ambient = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambient);
@@ -51,16 +59,33 @@ helperGrid.visible = false;
 scene.add(axesHelper);
 scene.add(helperGrid);
 
-const floorGeo = new THREE.CircleGeometry(18, 64);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.95, metalness: 0.05 });
+// Large ground plane with grass tint
+const groundGeo = new THREE.CircleGeometry(280, 64);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x3c6432, roughness: 0.95, metalness: 0.02 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.02;
+scene.add(ground);
+
+// Showroom pad + parking stripes
+const floorGeo = new THREE.CircleGeometry(22, 64);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x2a2d32, roughness: 0.9, metalness: 0.08 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = 0;
 scene.add(floor);
 
+const parking = new THREE.Mesh(
+  new THREE.RingGeometry(12, 20, 48, 1, Math.PI * 0.05, Math.PI * 0.9),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+);
+parking.rotation.x = -Math.PI / 2;
+parking.position.y = 0.002;
+scene.add(parking);
+
 const grid = new THREE.GridHelper(60, 60, 0x1b202a, 0x11151c);
-grid.position.y = 0.001;
-grid.material.opacity = 0.45;
+grid.position.y = 0.003;
+grid.material.opacity = 0.25;
 grid.material.transparent = true;
 scene.add(grid);
 
@@ -74,6 +99,7 @@ scene.add(truckRoot);
 let jefferson = null;
 let traffic = null;
 let pedestrians = null;
+let minimap = null;
 const JEFFERSON_START = new THREE.Vector3(0, 0, 40);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const forwardBase = new THREE.Vector3(1, 0, 0); // GLB forward is +X
@@ -81,6 +107,10 @@ const cameraOffsetLocal = new THREE.Vector3(-7.4, 2.1, 0); // behind the truck i
 const targetOffset = new THREE.Vector3(0, 1.2, 0);
 
 let mode = "showroom";
+const dayNight = {
+  cycleMs: 5 * 60 * 60 * 1000, // 5 hours real time
+  t: 0,
+};
 
 const state = {
   yaw: 0,
@@ -158,6 +188,12 @@ function setMode(next) {
 
   if (driving) {
     jumpToJefferson();
+    if (!minimap && minimapCanvas) {
+      minimap = new Minimap("minimap", {
+        getPosition: () => truckRoot.position,
+        getRotation: () => state.yaw,
+      });
+    }
     renderer.domElement.requestPointerLock?.();
   } else {
     resetShowroomPose();
@@ -268,7 +304,8 @@ function driveUpdate(dt) {
   const speed01 = THREE.MathUtils.clamp(Math.abs(state.speed) / state.maxSpeed, 0, 1);
   const steerStrength = THREE.MathUtils.lerp(state.maxSteer, 0.18, speed01);
 
-  const yawRate = state.steer * steerStrength * (0.6 + 1.4 * speed01) * (state.speed >= 0 ? 1 : -1);
+  // Invert yaw sign so D=right turns right in world space
+  const yawRate = -state.steer * steerStrength * (0.6 + 1.4 * speed01) * (state.speed >= 0 ? 1 : -1);
   state.yaw += yawRate * dt;
 
   // Move forward using the GLB's +X forward axis
@@ -289,6 +326,37 @@ function driveUpdate(dt) {
 
   camera.position.lerp(desired, 1 - Math.pow(0.0008, dt));
   camera.lookAt(target);
+}
+
+function updateDayNight(dt) {
+  // Advance cycle
+  dayNight.t = (dayNight.t + dt * 1000) % dayNight.cycleMs;
+  const phase = dayNight.t / dayNight.cycleMs; // 0..1
+
+  // Map to brightness curve (day at 0.25, night at 0.75)
+  const sunUp = Math.max(0, Math.sin(phase * Math.PI * 2));
+  const night = 1 - sunUp;
+
+  const skyDay = new THREE.Color(0x9ecffb);
+  const skyNight = new THREE.Color(0x0a0c12);
+  scene.background = skyDay.clone().lerp(skyNight, night * 0.7);
+  scene.fog.color = skyDay.clone().lerp(skyNight, night * 0.7);
+
+  const fogNear = THREE.MathUtils.lerp(18, 8, night);
+  const fogFar = THREE.MathUtils.lerp(1400, 420, night);
+  scene.fog.near = fogNear;
+  scene.fog.far = fogFar;
+
+  hemi.intensity = THREE.MathUtils.lerp(0.95, 0.2, night);
+  hemi.color.set(0xbfd9ff).lerp(new THREE.Color(0x304050), night);
+  hemi.groundColor.set(0x0a0b0c).lerp(new THREE.Color(0x020305), night);
+
+  sun.intensity = THREE.MathUtils.lerp(1.25, 0.08, night);
+  sun.color.set(0xfff0d0).lerp(new THREE.Color(0x8899ff), night * 0.6);
+  sun.position.set(20, THREE.MathUtils.lerp(40, 4, night), 12);
+
+  ambient.intensity = THREE.MathUtils.lerp(0.5, 0.12, night);
+  ambient.color.set(0xffffff).lerp(new THREE.Color(0x224466), night);
 }
 
 function rayHitTruck(clientX, clientY) {
@@ -354,7 +422,9 @@ function tick() {
     driveUpdate(dt);
     traffic?.update(dt, truckRoot.position);
     pedestrians?.update(dt, truckRoot.position);
+    minimap?.draw();
   }
+  updateDayNight(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

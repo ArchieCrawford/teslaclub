@@ -23,6 +23,7 @@
         display: flex; align-items: center; justify-content: space-between;
         gap: 16px;
       }
+      .top-actions { display: flex; align-items: center; gap: 10px; }
       .brand {
         pointer-events: auto;
         display: flex; flex-direction: column; line-height: 1.1;
@@ -88,6 +89,18 @@
         display: none;
         pointer-events: none;
       }
+      #minimap {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 200px;
+        height: 200px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(8px);
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -107,7 +120,10 @@
           <b>Hampton Roads Cyber Trucks</b>
           <span>Showroom → Drive mode</span>
         </div>
-        <div class="pill"><span id="modeBadge">SHOWROOM</span></div>
+        <div class="top-actions">
+          <button id="backShowroom" style="display:none;">Back to showroom</button>
+          <div class="pill"><span id="modeBadge">SHOWROOM</span></div>
+        </div>
       </div>
 
       <div class="center">
@@ -116,7 +132,6 @@
           <p>Entering drive drops you onto Jefferson Ave.</p>
           <div class="row">
             <button id="enterDrive">Enter drive mode</button>
-            <button id="backShowroom" style="display:none;">Back to showroom</button>
           </div>
           <div class="hint" id="hint">Drive mode starts on Jefferson Ave: WASD or Arrow Keys to move, mouse to look, Esc to unlock.</div>
         </div>
@@ -129,6 +144,7 @@
     </div>
 
     <div id="crosshair"></div>
+    <canvas id="minimap" width="200" height="200"></canvas>
 
     <script type="module" src="/main.js"></script>
   </body>

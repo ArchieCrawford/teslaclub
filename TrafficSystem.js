@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
  * AI Traffic System - Vehicles driving autonomously on Jefferson Ave
@@ -8,6 +9,19 @@ export class TrafficSystem {
     this.scene = scene;
     this.vehicles = [];
     this.vehiclePool = [];
+    this.loader = new GLTFLoader();
+    this.carAssetPaths = [
+      '/assets/vintage_elegance_old_classy_car.glb',
+      '/assets/sentinel_pursuer.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Van.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Car_06.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Car_13.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Car_16.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Car_19.glb',
+      '/assets/city/Separate_assets_glb/Separate_assets_glb/Futuristic_Car_1.glb'
+    ];
+    this.carModelCache = new Map();
+    this.carModelLoading = new Map();
     
     // Traffic configuration
     this.config = {
@@ -47,113 +61,133 @@ export class TrafficSystem {
       0xc0c0c0  // Silver
     ];
   }
+
+  loadCarModel(path) {
+    if (this.carModelCache.has(path)) return this.carModelCache.get(path);
+    if (this.carModelLoading.has(path)) return this.carModelLoading.get(path);
+
+    const promise = new Promise((resolve, reject) => {
+      this.loader.load(
+        path,
+        (gltf) => {
+          const scene = gltf.scene || gltf.scenes?.[0];
+          if (scene) {
+            scene.traverse((o) => {
+              if (o.isMesh) {
+                o.castShadow = true;
+                o.receiveShadow = true;
+              }
+            });
+            this.carModelCache.set(path, scene);
+            resolve(scene);
+          } else {
+            reject(new Error('No scene in GLB'));
+          }
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+
+    this.carModelLoading.set(path, promise);
+    promise.catch(() => this.carModelLoading.delete(path));
+    return promise;
+  }
+
+  cloneCarModel(path) {
+    const cached = this.carModelCache.get(path);
+    if (!cached) return null;
+    return cached.clone(true);
+  }
   
   createVehicle(lane, startZ, color) {
-    // Create simple car geometry (box with wheels)
     const carGroup = new THREE.Group();
-    
-    // Car body
-    const bodyGeometry = new THREE.BoxGeometry(1.8, 1.2, 4);
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3
-    });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 0.8;
-    body.castShadow = true;
-    carGroup.add(body);
-    
-    // Cabin (top part)
-    const cabinGeometry = new THREE.BoxGeometry(1.6, 0.8, 2.5);
-    const cabin = new THREE.Mesh(cabinGeometry, bodyMaterial);
-    cabin.position.set(0, 1.6, -0.3);
-    cabin.castShadow = true;
-    carGroup.add(cabin);
-    
-    // Windows (dark glass)
-    const glassGeometry = new THREE.BoxGeometry(1.5, 0.7, 2.3);
-    const glassMaterial = new THREE.MeshStandardMaterial({
-      color: 0x222222,
-      transparent: true,
-      opacity: 0.6,
-      metalness: 0.9,
-      roughness: 0.1
-    });
-    const glass = new THREE.Mesh(glassGeometry, glassMaterial);
-    glass.position.set(0, 1.65, -0.3);
-    carGroup.add(glass);
-    
-    // Wheels (simple cylinders)
-    const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 16);
-    const wheelMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      roughness: 0.8
-    });
-    
-    const wheelPositions = [
-      { x: -0.8, z: 1.2 },  // Front left
-      { x: 0.8, z: 1.2 },   // Front right
-      { x: -0.8, z: -1.2 }, // Rear left
-      { x: 0.8, z: -1.2 }   // Rear right
-    ];
-    
-    const wheels = [];
-    wheelPositions.forEach(pos => {
-      const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(pos.x, 0.35, pos.z);
-      wheel.castShadow = true;
-      carGroup.add(wheel);
-      wheels.push(wheel);
-    });
-    
-    // Headlights
-    const headlightGeometry = new THREE.CircleGeometry(0.15, 8);
-    const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-    
-    const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
-    leftHeadlight.position.set(-0.5, 0.7, 2.01);
-    carGroup.add(leftHeadlight);
-    
-    const rightHeadlight = leftHeadlight.clone();
-    rightHeadlight.position.x = 0.5;
-    carGroup.add(rightHeadlight);
-    
-    // Taillights
-    const taillightMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const leftTaillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
-    leftTaillight.position.set(-0.5, 0.7, -2.01);
-    leftTaillight.rotation.y = Math.PI;
-    carGroup.add(leftTaillight);
-    
-    const rightTaillight = leftTaillight.clone();
-    rightTaillight.position.x = 0.5;
-    carGroup.add(rightTaillight);
-    
-    // Position the car
-    carGroup.position.set(lane.x, 0, startZ);
-    
-    // Rotate based on direction
-    if (lane.direction < 0) {
-      carGroup.rotation.y = Math.PI;
+
+    // Try a GLB car first
+    const assetPath = this.carAssetPaths[Math.floor(Math.random() * this.carAssetPaths.length)];
+    const model = this.cloneCarModel(assetPath);
+
+    if (!this.carModelCache.has(assetPath)) {
+      // Kick off load for future spawns
+      this.loadCarModel(assetPath).catch(() => {});
     }
-    
+
+    if (model) {
+      // Normalize scale roughly to a 4.2m length car
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const targetLen = 4.2;
+      const scale = targetLen / Math.max(size.z, 0.001);
+      model.scale.multiplyScalar(scale);
+      model.position.set(0, -box.min.y * scale, 0);
+      carGroup.add(model);
+    } else {
+      // Fallback simple car
+      const bodyGeometry = new THREE.BoxGeometry(1.8, 1.2, 4);
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.7,
+        roughness: 0.3
+      });
+      const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      body.position.y = 0.8;
+      body.castShadow = true;
+      carGroup.add(body);
+
+      const cabinGeometry = new THREE.BoxGeometry(1.6, 0.8, 2.5);
+      const cabin = new THREE.Mesh(cabinGeometry, bodyMaterial);
+      cabin.position.set(0, 1.6, -0.3);
+      cabin.castShadow = true;
+      carGroup.add(cabin);
+
+      const glassGeometry = new THREE.BoxGeometry(1.5, 0.7, 2.3);
+      const glassMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        transparent: true,
+        opacity: 0.6,
+        metalness: 0.9,
+        roughness: 0.1
+      });
+      const glass = new THREE.Mesh(glassGeometry, glassMaterial);
+      glass.position.set(0, 1.65, -0.3);
+      carGroup.add(glass);
+
+      const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 16);
+      const wheelMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.8
+      });
+      const wheelPositions = [
+        { x: -0.8, z: 1.2 },
+        { x: 0.8, z: 1.2 },
+        { x: -0.8, z: -1.2 },
+        { x: 0.8, z: -1.2 }
+      ];
+      wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(pos.x, 0.35, pos.z);
+        wheel.castShadow = true;
+        carGroup.add(wheel);
+      });
+    }
+
+    carGroup.position.set(lane.x, 0, startZ);
+    if (lane.direction < 0) carGroup.rotation.y = Math.PI;
     this.scene.add(carGroup);
-    
-    // Create vehicle data
+
     const vehicle = {
       mesh: carGroup,
-      wheels: wheels,
+      wheels: [],
       lane: lane,
       speed: this.config.minSpeed + Math.random() * (this.config.maxSpeed - this.config.minSpeed),
       targetSpeed: this.config.minSpeed + Math.random() * (this.config.maxSpeed - this.config.minSpeed),
       position: startZ,
       color: color,
       brakingDistance: 15,
-      following: null // Vehicle ahead
+      following: null
     };
-    
+
     return vehicle;
   }
   

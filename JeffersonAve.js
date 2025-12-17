@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
  * Jefferson Ave Corridor - Newport News, VA
@@ -12,6 +13,9 @@ export class JeffersonAve {
     this.landmarks = [];
     this.intersections = [];
     this.streetLights = [];
+    this.loader = new GLTFLoader();
+    this.cityPropCache = new Map();
+    this.cityPropLoading = new Map();
     
     // Materials cache for performance
     this.materials = this.createMaterials();
@@ -20,6 +24,7 @@ export class JeffersonAve {
     this.instancedMeshes = {};
     
     this.buildCorridor();
+    this.loadSideProps();
   }
   
   createMaterials() {
@@ -561,7 +566,7 @@ export class JeffersonAve {
   
   addVegetation() {
     // Trees along the corridor (simple representations)
-    const treePositions = [];
+      const treePositions = []; // Updated tree positions logic
     for (let z = 0; z < 1500; z += 25) {
       if (Math.random() > 0.3) { // Random spacing
         treePositions.push({ x: -25, z });
@@ -592,6 +597,64 @@ export class JeffersonAve {
     foliage.position.set(x, 5, z);
     foliage.castShadow = true;
     this.scene.add(foliage);
+  }
+
+  loadSideProps() {
+    const props = [
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Billboard_2x1_05.glb', x: -38, z: 200, scale: 1.6 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Billboard_4x1_03.glb', x: 42, z: 520, scale: 1.4 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Bus_Stop_02.glb', x: -28, z: 760, scale: 1.2 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Fountain_03.glb', x: 30, z: 980, scale: 1.1 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Eco_Building_Terrace.glb', x: -55, z: 1150, scale: 0.9 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Regular_Building_TwistedTower_Large.glb', x: 65, z: 1350, scale: 0.18 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Palm_03.glb', x: -32, z: 320, scale: 1.5 },
+      { path: '/assets/city/Separate_assets_glb/Separate_assets_glb/Palm_03.glb', x: 32, z: 1240, scale: 1.5 }
+    ];
+
+    props.forEach((p) => this.spawnPropInstance(p.path, p.x, p.z, p.scale));
+  }
+
+  requestProp(path) {
+    if (this.cityPropCache.has(path)) return Promise.resolve(this.cityPropCache.get(path));
+    if (this.cityPropLoading.has(path)) return this.cityPropLoading.get(path);
+
+    const promise = new Promise((resolve, reject) => {
+      this.loader.load(
+        path,
+        (gltf) => {
+          const scene = gltf.scene || gltf.scenes?.[0];
+          if (scene) {
+            scene.traverse((o) => {
+              if (o.isMesh) {
+                o.castShadow = true;
+                o.receiveShadow = true;
+              }
+            });
+            this.cityPropCache.set(path, scene);
+            resolve(scene);
+          } else {
+            reject(new Error('No scene in GLB'));
+          }
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+
+    this.cityPropLoading.set(path, promise);
+    promise.catch(() => this.cityPropLoading.delete(path));
+    return promise;
+  }
+
+  spawnPropInstance(path, x, z, scale = 1) {
+    this.requestProp(path)
+      .then((model) => {
+        const clone = model.clone(true);
+        clone.scale.multiplyScalar(scale);
+        clone.position.set(x, 0, z);
+        this.scene.add(clone);
+      })
+      .catch((err) => console.warn('Failed to load prop', path, err));
   }
   
   getCollisionObjects() {
