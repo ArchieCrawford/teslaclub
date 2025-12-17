@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { JeffersonAve } from "./JeffersonAve.js";
+import { TrafficSystem } from "./TrafficSystem.js";
+import { PedestrianSystem } from "./PedestrianSystem.js";
 
 const app = document.querySelector("#app");
 const enterDriveBtn = document.querySelector("#enterDrive");
@@ -8,6 +10,7 @@ const backShowroomBtn = document.querySelector("#backShowroom");
 const modeBadge = document.querySelector("#modeBadge");
 const cta = document.querySelector("#cta");
 const crosshair = document.querySelector("#crosshair");
+const ctaHint = document.querySelector("#hint");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -69,6 +72,8 @@ let truckYOffset = 0;
 scene.add(truckRoot);
 
 let jefferson = null;
+let traffic = null;
+let pedestrians = null;
 const JEFFERSON_START = new THREE.Vector3(0, 0, 40);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const forwardBase = new THREE.Vector3(1, 0, 0); // GLB forward is +X
@@ -93,6 +98,8 @@ const state = {
 
 function ensureJefferson() {
   if (!jefferson) jefferson = new JeffersonAve(scene);
+  if (!traffic) traffic = new TrafficSystem(scene);
+  if (!pedestrians) pedestrians = new PedestrianSystem(scene);
 }
 
 function resetShowroomPose() {
@@ -140,6 +147,7 @@ function setMode(next) {
   backShowroomBtn.style.display = driving ? "inline-block" : "none";
   enterDriveBtn.style.display = driving ? "none" : "inline-block";
   cta.style.opacity = driving ? "0.55" : "1";
+  cta.style.display = driving ? "none" : "block";
   crosshair.style.display = driving ? "block" : "none";
   renderer.domElement.style.cursor = driving ? "none" : "pointer";
 
@@ -235,10 +243,10 @@ function showroomCamera(dt) {
 }
 
 function driveUpdate(dt) {
-  const W = state.keys.has("KeyW");
-  const S = state.keys.has("KeyS");
-  const A = state.keys.has("KeyA");
-  const D = state.keys.has("KeyD");
+  const W = state.keys.has("KeyW") || state.keys.has("ArrowUp");
+  const S = state.keys.has("KeyS") || state.keys.has("ArrowDown");
+  const A = state.keys.has("KeyA") || state.keys.has("ArrowLeft");
+  const D = state.keys.has("KeyD") || state.keys.has("ArrowRight");
 
   const throttle = (W ? 1 : 0) + (S ? -1 : 0);
   const steerIn = (D ? 1 : 0) + (A ? -1 : 0);
@@ -342,7 +350,11 @@ setMode("showroom");
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.033);
   if (mode === "showroom") showroomCamera(dt);
-  if (mode === "drive") driveUpdate(dt);
+  if (mode === "drive") {
+    driveUpdate(dt);
+    traffic?.update(dt, truckRoot.position);
+    pedestrians?.update(dt, truckRoot.position);
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

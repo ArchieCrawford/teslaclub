@@ -66,6 +66,8 @@ export class JeffersonAve {
     this.createShoppingCenter(-150, 400); // ~0.8 miles south
     this.createGasStation(120, 600);
     this.createFastFoodRow(-100, 200);
+    this.createConventionCenter(-90, 1050);
+    this.createMarinaPark(140, 300);
     
     // Intersections with cross streets
     this.createIntersection('Kiln Creek Pkwy', 0, 50);
@@ -347,6 +349,67 @@ export class JeffersonAve {
       
       this.collisionObjects.push({ x: x + rest.xOff, z: z, radius: 12 });
     });
+  }
+
+  createConventionCenter(x, z) {
+    const width = 90;
+    const depth = 60;
+    const height = 14;
+    const hall = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      new THREE.MeshStandardMaterial({ color: 0x3a4f6b, roughness: 0.6, metalness: 0.25 })
+    );
+    hall.position.set(x, height / 2, z);
+    hall.castShadow = true;
+    hall.receiveShadow = true;
+    this.scene.add(hall);
+
+    // Glass atrium
+    const atrium = new THREE.Mesh(
+      new THREE.BoxGeometry(28, height + 4, 22),
+      new THREE.MeshStandardMaterial({ color: 0x99c0ff, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.65 })
+    );
+    atrium.position.set(x - width / 2 - 10, (height + 4) / 2, z - depth / 2 + 12);
+    atrium.castShadow = true;
+    this.scene.add(atrium);
+
+    this.createSign('CONVENTION CTR', x, height + 2.5, z - depth / 2 - 2, 0x5ab1ff);
+    this.createParkingLot(x, z + 50, 140, 80);
+    this.collisionObjects.push({ x, z, radius: 60 });
+    this.landmarks.push({ name: 'Hampton Convention Center', type: 'venue', position: { x, z }, icon: '🏟️' });
+  }
+
+  createMarinaPark(x, z) {
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshStandardMaterial({ color: 0x2b4c73, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.9 })
+    );
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(x, 0.02, z);
+    this.scene.add(water);
+
+    // Boardwalk
+    const boardwalk = new THREE.Mesh(
+      new THREE.BoxGeometry(80, 0.6, 10),
+      new THREE.MeshStandardMaterial({ color: 0x8b6a4f, roughness: 0.8 })
+    );
+    boardwalk.position.set(x, 0.3, z - 40);
+    boardwalk.castShadow = true;
+    this.scene.add(boardwalk);
+
+    // Sailboat mast cluster
+    for (let i = -2; i <= 2; i++) {
+      const mast = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.1, 8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xdde8ff, metalness: 0.6 })
+      );
+      mast.position.set(x + i * 6, 4, z + 12 + Math.random() * 8);
+      this.scene.add(mast);
+    }
+
+    this.createSign('RIVERFRONT PARK', x, 6, z - 55, 0x2ec27e);
+    this.collisionObjects.push({ x, z, radius: 50 });
+    this.landmarks.push({ name: 'Marina & Riverfront Park', type: 'park', position: { x, z }, icon: '🌊' });
   }
   
   createParkingLot(x, z, width, depth) {
