@@ -13,6 +13,12 @@ const cta = document.querySelector("#cta");
 const crosshair = document.querySelector("#crosshair");
 const ctaHint = document.querySelector("#hint");
 const minimapCanvas = document.querySelector("#minimap");
+const mobileControls = document.querySelector("#mobileControls");
+const btnLeft = document.querySelector("#btnLeft");
+const btnRight = document.querySelector("#btnRight");
+const btnGas = document.querySelector("#btnGas");
+const btnBrake = document.querySelector("#btnBrake");
+const isTouch = matchMedia?.("(pointer: coarse)").matches ?? false;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -126,6 +132,21 @@ const state = {
   maxSteer: 0.75,
 };
 
+function bindHold(btn, keyCode) {
+  if (!btn) return;
+  const down = (e) => { e.preventDefault(); state.keys.add(keyCode); };
+  const up = (e) => { e.preventDefault(); state.keys.delete(keyCode); };
+  btn.addEventListener("pointerdown", down);
+  btn.addEventListener("pointerup", up);
+  btn.addEventListener("pointercancel", up);
+  btn.addEventListener("pointerleave", up);
+}
+
+bindHold(btnLeft, "KeyA");
+bindHold(btnRight, "KeyD");
+bindHold(btnGas, "KeyW");
+bindHold(btnBrake, "KeyS");
+
 function ensureJefferson() {
   if (!jefferson) jefferson = new JeffersonAve(scene);
   if (!traffic) traffic = new TrafficSystem(scene);
@@ -180,6 +201,7 @@ function setMode(next) {
   cta.style.display = driving ? "none" : "block";
   crosshair.style.display = driving ? "block" : "none";
   renderer.domElement.style.cursor = driving ? "none" : "pointer";
+  if (mobileControls) mobileControls.style.display = driving && isTouch ? "block" : "none";
 
   floor.visible = !driving;
   grid.visible = !driving;
@@ -194,7 +216,7 @@ function setMode(next) {
         getRotation: () => state.yaw,
       });
     }
-    renderer.domElement.requestPointerLock?.();
+    if (!isTouch) renderer.domElement.requestPointerLock?.();
   } else {
     resetShowroomPose();
     document.exitPointerLock?.();

@@ -73,7 +73,7 @@
       .hint { margin-top: 10px; font-size: 12px; opacity: 0.7; }
 
       .bottom {
-        display: flex; align-items: center; justify-content: space-between;
+        display: flex; align-items: center; justify-content: flex-end;
         gap: 14px;
         opacity: 0.7;
         font-size: 12px;
@@ -89,6 +89,22 @@
         display: none;
         pointer-events: none;
       }
+      #mobileControls {
+        display: none;
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 20;
+      }
+      #mobileControls .cluster { display: flex; gap: 12px; pointer-events: auto; }
+      #mobileControls button{
+        width:72px;height:72px;border-radius:14px;
+        border:1px solid rgba(255,255,255,.25);
+        background:rgba(10,12,16,.55);
+        color:#fff;font-size:26px;
+        backdrop-filter: blur(8px);
+      }
+      #mobileControls button:active{ transform: scale(0.98); }
       #minimap {
         position: fixed;
         right: 16px;
@@ -138,12 +154,21 @@
       </div>
 
       <div class="bottom">
-        <div>Built for Dad ❤️</div>
         <div>Model: <span style="opacity:.85;">/models/cybertruck-meshy-final.glb</span></div>
       </div>
     </div>
 
     <div id="crosshair"></div>
+    <div id="mobileControls">
+      <div style="position:absolute; left:16px; bottom:16px;" class="cluster">
+        <button id="btnLeft">◀</button>
+        <button id="btnRight">▶</button>
+      </div>
+      <div style="position:absolute; right:16px; bottom:16px;" class="cluster">
+        <button id="btnBrake">⟱</button>
+        <button id="btnGas">⟰</button>
+      </div>
+    </div>
     <canvas id="minimap" width="200" height="200"></canvas>
 
     <script type="module" src="/main.js"></script>
